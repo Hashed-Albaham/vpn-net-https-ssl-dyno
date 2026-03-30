@@ -1,0 +1,50 @@
+name: Renew MikroTik SSL (Dynu - vipye.net)
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # تشغيل تلقائي أول كل شهر
+  workflow_dispatch:      # تشغيل يدوي عند الحاجة
+
+permissions:
+  contents: write
+
+env:
+  DOMAIN: vipye.net
+
+jobs:
+  renew-cert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install acme.sh
+        run: |
+          curl https://get.acme.sh | sh -s email=yo830il@gmail.com
+          
+      - name: Issue Certificate (Dynu)
+        env:
+          Dynu_ClientId: ${{ secrets.DYNU_CLIENT_ID }}
+          Dynu_Secret: ${{ secrets.DYNU_SECRET }}
+        run: |
+          # طلب الشهادة من Let's Encrypt
+          ~/.acme.sh/acme.sh --issue \
+            -d ${{ env.DOMAIN }} \
+            --dns dns_dynu \
+            --server letsencrypt
+
+      - name: Save All Certs to Folder
+        run: |
+          mkdir -p certs
+          # نسخ كل الملفات المهمة إلى مجلد certs
+          cp ~/.acme.sh/${{ env.DOMAIN }}_ecc/${{ env.DOMAIN }}.cer certs/cert.pem
+          cp ~/.acme.sh/${{ env.DOMAIN }}_ecc/fullchain.cer certs/fullchain.pem
+          cp ~/.acme.sh/${{ env.DOMAIN }}_ecc/${{ env.DOMAIN }}.key certs/privkey.pem
+          
+      - name: Commit and Push to GitHub
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add certs/
+          git commit -m "Update All SSL Certificates for ${{ env.DOMAIN }}" || echo "No changes to commit"
+          git push
